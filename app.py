@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from simulation import run_simulation
 from sf_comparison import compare_spreading_factors
 
+ORDER = [f"SF{s}" for s in range(7, 13)]
+
 st.set_page_config(
     page_title="LoRaWAN Scalability Simulator",
     page_icon="📡",
@@ -13,7 +15,7 @@ st.set_page_config(
 
 st.title("📡 LoRaWAN Scalability Simulator")
 st.write(
-    "D2 Prototype — Scalability Limits of LoRaWAN "
+    "Preliminary Prototype — Scalability Limits of LoRaWAN "
     "under Dense Node Deployment"
 )
 
@@ -65,14 +67,8 @@ with tab1:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Devices", result["nodes"])
         c2.metric("PDR", f'{result["pdr"]}%')
-        c3.metric(
-            "Collision Rate",
-            f'{result["collision_rate"]}%'
-        )
-        c4.metric(
-            "Time on Air",
-            f'{result["airtime_ms"]} ms'
-        )
+        c3.metric("Collision Rate", f'{result["collision_rate"]}%')
+        c4.metric("Time on Air", f'{result["airtime_ms"]} ms')
 
         node_counts = [50, 100, 200, 500, 1000]
 
@@ -87,15 +83,11 @@ with tab1:
         ])
 
         fig, ax = plt.subplots(figsize=(9, 5))
-        ax.plot(
-            df["nodes"], df["pdr"],
-            marker="o", label="PDR"
-        )
+        ax.plot(df["nodes"], df["pdr"], marker="o", label="PDR")
         ax.plot(
             df["nodes"], df["collision_rate"],
             marker="s", label="Collision Rate"
         )
-
         ax.set_xlabel("Number of End Devices")
         ax.set_ylabel("Percentage (%)")
         ax.set_ylim(0, 100)
@@ -119,7 +111,7 @@ with tab2:
     st.header("Spreading Factor Comparison")
 
     st.write(
-        "Compare SF7-SF12 across different network "
+        "Compare SF7–SF12 across different network "
         "densities using repeated simulation runs."
     )
 
@@ -131,51 +123,51 @@ with tab2:
     if st.button("Compare All SFs", type="primary"):
 
         with st.spinner("Running simulations..."):
-            comparison_df = compare_spreading_factors(
+            summary_df, runs_df = compare_spreading_factors(
                 duration=duration,
                 payload_size=payload_size,
                 repetitions=repetitions
             )
 
         st.subheader("PDR Comparison")
-
-        pdr_table = comparison_df.pivot(
-            index="Nodes",
-            columns="SF",
-            values="PDR (%)"
-        )
-
+        pdr_table = summary_df.pivot(
+            index="Nodes", columns="SF", values="PDR (%)"
+        )[ORDER]
         st.line_chart(pdr_table)
 
         st.subheader("Collision Rate Comparison")
-
-        collision_table = comparison_df.pivot(
-            index="Nodes",
-            columns="SF",
-            values="Collision Rate (%)"
-        )
-
+        collision_table = summary_df.pivot(
+            index="Nodes", columns="SF", values="Collision Rate (%)"
+        )[ORDER]
         st.line_chart(collision_table)
 
         st.subheader("Time on Air Comparison")
-
-        airtime_table = (
-            comparison_df
-            .drop_duplicates(subset=["SF"])
+        airtime = (
+            summary_df.drop_duplicates(subset=["SF"])
             .set_index("SF")["Time on Air (ms)"]
+            .reindex(ORDER)
         )
-
-        st.bar_chart(airtime_table)
+        fig, ax = plt.subplots(figsize=(9, 5))
+        ax.bar(airtime.index, airtime.values)
+        ax.set_ylim(bottom=0)
+        ax.set_ylabel("Time on Air (ms)")
+        ax.set_title("Time on Air by Spreading Factor")
+        st.pyplot(fig)
+        plt.close(fig)
 
         st.subheader("Comparison Results")
-        st.dataframe(
-            comparison_df,
-            use_container_width=True
-        )
+        st.dataframe(summary_df, use_container_width=True)
 
         st.download_button(
             "Download SF Comparison CSV",
-            comparison_df.to_csv(index=False),
+            summary_df.to_csv(index=False),
             file_name="sf_comparison_results.csv",
+            mime="text/csv"
+        )
+
+        st.download_button(
+            "Download Per-run Results",
+            runs_df.to_csv(index=False),
+            file_name="sf_comparison_per_run.csv",
             mime="text/csv"
         )
